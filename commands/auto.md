@@ -1,16 +1,59 @@
 ---
-description: Fully autonomous build execution. Runs all phases (A-H) continuously without human checkpoints.
+description: Fully autonomous build with automatic architecture detection (simple or swarm)
 arguments:
   - name: phases
     description: Number of phases to run (default: all from ROADMAP)
     required: false
+  - name: mode
+    description: 'Architecture mode: auto (default), simple, or swarm'
+    required: false
 ---
 
-# /go:auto [phases] — Autonomous Full Build
+# /go:auto [phases] [--mode=auto|simple|swarm]
 
-You are the **Boss** running a fully autonomous build using GO-Auto.
+You are the **Boss** running a fully autonomous build using GO-Auto with automatic architecture detection.
 
-**Announce**: "I'm running an autonomous build using GO-Auto. All phases will execute continuously without human checkpoints."
+## Architecture Decision
+
+**Three execution modes:**
+- `--mode=auto` (default) - Analyze build complexity, choose best architecture
+- `--mode=simple` - Direct spawning, Boss manages all workers
+- `--mode=swarm` - Hierarchical teams with persistent coordinators
+
+**Auto-detection criteria:**
+```javascript
+function analyze_complexity(roadmap) {
+  const total_tasks = count_all_tasks(roadmap)
+  const max_parallel = max_tasks_in_any_wave(roadmap)
+  const phase_count = count_phases(roadmap)
+  const avg_tasks_per_wave = total_tasks / count_waves(roadmap)
+
+  return {
+    total_tasks,
+    max_parallel,
+    phase_count,
+    avg_tasks_per_wave,
+    complexity_score: (total_tasks * 0.3) + (max_parallel * 2) + (phase_count * 1.5)
+  }
+}
+
+function choose_architecture(complexity) {
+  // Use swarm if:
+  // - Total tasks > 15
+  // - Max parallel > 6
+  // - Complexity score > 30
+  // - 4+ phases
+
+  if (complexity.total_tasks > 15 ||
+      complexity.max_parallel > 6 ||
+      complexity.complexity_score > 30 ||
+      complexity.phase_count >= 4) {
+    return "swarm"
+  }
+
+  return "simple"
+}
+```
 
 ## Prerequisites
 
@@ -30,13 +73,45 @@ ls PREFLIGHT.md  # Optional but recommended
 If ROADMAP.md doesn't exist, abort with:
 > "Cannot run autonomous build without ROADMAP.md. Run `/go:discover` first."
 
-## Determine Phase Count
+## Initialization
 
-```
-if phases argument provided:
-    run_phases = min(phases, total_phases_in_roadmap)
-else:
-    run_phases = total_phases_in_roadmap
+```javascript
+// Parse arguments
+const phases_arg = arguments.phases || null
+const mode_arg = arguments.mode || "auto"
+
+// Read ROADMAP
+const roadmap = read("ROADMAP.md")
+const total_phases = count_phases(roadmap)
+const run_phases = phases_arg ? min(phases_arg, total_phases) : total_phases
+
+// Decide architecture
+let architecture = mode_arg
+
+if (mode_arg === "auto") {
+  const complexity = analyze_complexity(roadmap)
+  architecture = choose_architecture(complexity)
+
+  announce(`📊 Build Analysis:
+  - Total tasks: ${complexity.total_tasks}
+  - Max parallel: ${complexity.max_parallel}
+  - Phases: ${complexity.phase_count}
+  - Complexity score: ${complexity.complexity_score}
+
+  🏗️ Selected architecture: ${architecture.toUpperCase()}
+  ${architecture === "swarm" ?
+    "(Using hierarchical teams with persistent coordinators)" :
+    "(Using direct spawning, Boss manages all workers)"}`)
+} else {
+  announce(`🏗️ Architecture: ${architecture.toUpperCase()} (user-specified)`)
+}
+
+// Route to appropriate execution mode
+if (architecture === "swarm") {
+  execute_swarm_mode(run_phases)
+} else {
+  execute_simple_mode(run_phases)
+}
 ```
 
 ## Initialize HANDOFF.md
@@ -49,6 +124,7 @@ If HANDOFF.md doesn't exist, create it:
 ## Build Info
 - **Started**: [timestamp]
 - **Mode**: Autonomous (GO-Auto)
+- **Architecture**: [simple|swarm]
 - **Phases Planned**: [N]
 
 ## Beads Log
@@ -64,266 +140,391 @@ If HANDOFF.md doesn't exist, create it:
 |-------|--------|-----|
 ```
 
-## Main Execution Loop
+## Simple Mode Execution
 
-```
-for phase_num in 1..run_phases:
+```javascript
+function execute_simple_mode(run_phases) {
+  announce("⚡ Running in SIMPLE mode - Boss manages all workers directly")
 
-    announce("Starting Phase {phase_num}")
+  for (phase_num = 1; phase_num <= run_phases; phase_num++) {
+    announce(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PHASE ${phase_num} - STARTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
 
-    ## PHASE A: Environment Review
-    spawn GO:Prebuild Planner with:
-        - phase_num
-        - ROADMAP.md context
-        - HANDOFF.md (if exists)
+    // PHASE A: Environment Review
+    announce("[Phase A: Environment Review]")
+    const prebuild_agent = Task({
+      subagent_type: "general-purpose",
+      prompt: load_agent("agents/go-prebuild-planner.md") + `
+        Phase: ${phase_num}
+        ROADMAP context: ${read_phase_goals(roadmap, phase_num)}
+        HANDOFF context: ${read("HANDOFF.md")}`
+    })
+    wait(prebuild_agent)
+    announce(`✓ BUILD_GUIDE_PHASE_${phase_num}.md created`)
 
-    wait for BUILD_GUIDE_PHASE_{phase_num}.md
+    // PHASE B: Build Planning
+    announce("[Phase B: Build Planning]")
+    const planner_agent = Task({
+      subagent_type: "general-purpose",
+      prompt: load_agent("agents/go-build-planner.md") + `
+        Phase: ${phase_num}
+        BUILD_GUIDE: ${read(`BUILD_GUIDE_PHASE_${phase_num}.md`)}`
+    })
+    wait(planner_agent)
+    announce(`✓ PHASE_${phase_num}_PLAN.md created`)
 
-    ## PHASE B: Build Planning
-    spawn GO:Build Planner with:
-        - phase_num
-        - BUILD_GUIDE_PHASE_{phase_num}.md
-        - ROADMAP.md phase goals
+    // PHASE C: Auto-Validation
+    announce("[Phase C: Auto-Validation]")
+    const validation = auto_validate_plan(`PHASE_${phase_num}_PLAN.md`)
+    if (validation.errors.length > 0) {
+      ABORT("Plan validation failed", validation.errors)
+    }
+    if (validation.warnings.length > 0) {
+      announce(`⚠️ Warnings: ${validation.warnings.join(", ")}`)
+    }
+    announce("✓ Plan validated")
 
-    wait for PHASE_{phase_num}_PLAN.md
+    // PHASE D: Execution (Boss manages directly)
+    announce("[Phase D: Execution]")
+    const plan = read_plan(`PHASE_${phase_num}_PLAN.md`)
 
-    ## PHASE C: Auto-Validation
-    validate_result = auto_validate_plan(PHASE_{phase_num}_PLAN.md)
+    for (wave of plan.waves) {
+      announce(`⏳ Wave ${wave.number}: ${wave.tasks.length} tasks in parallel`)
 
-    if validate_result.errors:
-        ABORT("Plan validation failed", validate_result.errors)
+      // Spawn all workers for this wave
+      const workers = []
+      for (task of wave.tasks) {
+        const worker = Task({
+          subagent_type: "general-purpose",
+          prompt: load_agent("agents/go-builder.md") + `
+            Task: ${task.id} - ${task.name}
+            Description: ${task.description}
+            Files: ${task.files}
+            Smoke tests: ${task.smoke_tests}
+            Done when: ${task.done_when}`
+        })
+        workers.push({ worker, task })
+      }
 
-    if validate_result.warnings:
-        log_warnings(validate_result.warnings)
+      // Wait and collect results
+      const results = wait_all(workers)
 
-    ## PHASE D: Execution
-    execute_plan_with_auto_retry(PHASE_{phase_num}_PLAN.md)
+      // Handle failures with auto-retry
+      for (result of results) {
+        if (result.status === "failed") {
+          announce(`⚠️ Task ${result.task.id} failed, attempting auto-retry...`)
+          const retry_result = auto_retry_task(result, max_attempts=2)
+          if (retry_result.status === "failed") {
+            ABORT(`Task ${result.task.id} failed after retries`, retry_result)
+          }
+          announce(`✓ Task ${result.task.id} recovered after retry`)
+        }
+      }
 
-    ## PHASE E: Code Shortening
-    spawn GO:Refactor agents for major files
-    collect shortening notes
+      // Git checkpoint
+      git_add(wave.files)
+      git_commit(`feat(phase-${phase_num}-w${wave.number}): ${wave.description}`)
+      announce(`✓ Wave ${wave.number} complete, committed`)
+    }
 
-    ## PHASE F: Code Review
-    review_result = execute_review_with_auto_retry()
+    // PHASE E: Code Shortening
+    announce("[Phase E: Code Shortening]")
+    const major_files = identify_major_files(phase_num)
+    const refactor_agents = []
+    for (file of major_files) {
+      refactor_agents.push(Task({
+        subagent_type: "general-purpose",
+        prompt: load_agent("agents/go-refactor.md") + `
+          File: ${file}
+          Reduce complexity without changing behavior`
+      }))
+    }
+    wait_all(refactor_agents)
+    announce(`✓ Refactored ${major_files.length} files`)
 
-    if review_result == BLOCKED_AFTER_RETRIES:
-        ABORT("Review blocked after max retries", review_context)
+    // PHASE F: Code Review
+    announce("[Phase F: Code Review]")
+    const code_review = Task({
+      subagent_type: "general-purpose",
+      prompt: load_agent("agents/go-code-reviewer.md")
+    })
+    const security_review = Task({
+      subagent_type: "general-purpose",
+      prompt: load_agent("agents/go-security-reviewer.md")
+    })
 
-    ## PHASE G: Status Update (Lite)
+    const reviews = wait_all([code_review, security_review])
+
+    if (any_blocked(reviews)) {
+      const fixed = auto_fix_review_issues(reviews, max_attempts=2)
+      if (!fixed) {
+        ABORT("Review blocked after fix attempts")
+      }
+    }
+    announce("✓ Code review passed")
+
+    // PHASE G: Status Update
+    announce("[Phase G: Status Update]")
     update_handoff_beads(phase_num)
-    git_tag("v{version}-phase-{phase_num}")
+    git_tag(`v${version}-phase-${phase_num}`)
+    announce(`✓ Tagged v${version}-phase-${phase_num}`)
 
-    announce("Phase {phase_num} complete")
+    announce(`✓ Phase ${phase_num} complete`)
+  }
 
-## PHASE H: Final Verification
-spawn GO:Verifier
-wait for FINAL_VERIFICATION.md and PROJECT_REPORT.md
+  // PHASE H: Final Verification
+  announce("[Phase H: Final Verification]")
+  const verifier = Task({
+    subagent_type: "general-purpose",
+    prompt: load_agent("agents/go-verifier.md")
+  })
+  wait(verifier)
+  announce("✓ Verification complete")
 
-announce("Autonomous build complete")
+  announce("✅ Build complete!")
+}
 ```
 
-## Phase A: Environment Review
+## Swarm Mode Execution
 
-Spawn a Task agent:
-```
-subagent_type: "general-purpose"
-prompt: [Content of agents/go-prebuild-planner.md]
-         + "Phase: {phase_num}"
-         + "ROADMAP goals for this phase: {goals}"
-         + "HANDOFF.md context: {handoff_beads}"
-```
+```javascript
+function execute_swarm_mode(run_phases) {
+  announce("🌊 Running in SWARM mode - Hierarchical teams with persistent coordinators")
 
-Wait for `BUILD_GUIDE_PHASE_{phase_num}.md` to be created.
+  // Initialize core team
+  announce("Initializing core team...")
+  Teammate({
+    operation: "spawnTeam",
+    team_name: "go-auto-build",
+    description: "GO-Auto autonomous build orchestration"
+  })
 
-## Phase B: Build Planning
+  // Spawn core specialists
+  const core_team = [
+    { name: "planner", agent: "go-planner", phases: "A-B" },
+    { name: "architect", agent: "go-architect", phases: "C" },
+    { name: "wave-coordinator", agent: "go-wave-coordinator", phases: "D" },
+    { name: "quality-lead", agent: "go-quality-lead", phases: "E-F" },
+    { name: "scribe", agent: "go-scribe", phases: "G" },
+    { name: "verifier", agent: "go-verifier", phases: "H" }
+  ]
 
-Spawn a Task agent:
-```
-subagent_type: "general-purpose"
-prompt: [Content of agents/go-build-planner.md]
-         + "Phase: {phase_num}"
-         + "BUILD_GUIDE: {build_guide_content}"
-```
+  for (teammate of core_team) {
+    Task({
+      subagent_type: "general-purpose",
+      team_name: "go-auto-build",
+      name: teammate.name,
+      prompt: load_agent(`agents/${teammate.agent}.md`) + `
+        You are part of the GO-Auto core team.
+        You handle phases: ${teammate.phases}
+        You have access to ALL tools including Task and Teammate.
+        Spawn sub-swarms as needed for your work.`
+    })
+    announce(`  ✓ Spawned ${teammate.name}`)
+  }
 
-Wait for `PHASE_{phase_num}_PLAN.md` to be created.
+  // Verify team is online
+  announce("Verifying team members...")
+  for (teammate of core_team) {
+    SendMessage({
+      type: "message",
+      recipient: teammate.name,
+      content: "Status check - are you online?"
+    })
+  }
 
-## Phase C: Auto-Validation
+  // Wait for responses
+  wait_for_team_ready()
+  announce("✓ Core team assembled and ready")
 
-**NO HUMAN CHECKPOINT.** Instead, validate programmatically:
+  // Execute phases via delegation
+  for (phase_num = 1; phase_num <= run_phases; phase_num++) {
+    announce(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PHASE ${phase_num} - STARTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`)
 
-```python
-def auto_validate_plan(plan_path):
-    errors = []
-    warnings = []
+    // PHASE A-B: Delegate to planner
+    announce("[Phase A-B: Planning]")
+    TaskCreate({
+      subject: `Execute Phase A-B for Phase ${phase_num}`,
+      description: `Phase: ${phase_num}
+        ROADMAP goals: ${read_phase_goals(roadmap, phase_num)}
+        HANDOFF context: ${read("HANDOFF.md")}
 
-    plan = read_plan(plan_path)
+        Create BUILD_GUIDE_PHASE_${phase_num}.md and PHASE_${phase_num}_PLAN.md`,
+      owner: "planner"
+    })
 
-    # MUST PASS: Structure checks
-    for task in plan.tasks:
-        if not task.done_when or not is_numbered_list(task.done_when):
-            errors.append(f"Task {task.id}: Missing numbered Done When criteria")
+    wait_for_task_completion("planner")
+    announce(`✓ Planner completed Phase A-B`)
 
-        if not task.smoke_tests or not all(is_runnable_command(t) for t in task.smoke_tests):
-            errors.append(f"Task {task.id}: Smoke tests must be runnable commands")
+    // PHASE C: Delegate to architect
+    announce("[Phase C: Validation]")
+    TaskCreate({
+      subject: `Validate PHASE_${phase_num}_PLAN.md`,
+      description: `Validate plan structure, file ownership, smoke tests.
+        Report errors or approve.`,
+      owner: "architect"
+    })
 
-    if not plan.file_ownership_table:
-        errors.append("Missing File Ownership Guarantee table")
-    else:
-        conflicts = find_parallel_write_conflicts(plan.file_ownership_table)
-        if conflicts:
-            errors.append(f"Parallel write conflicts: {conflicts}")
+    wait_for_task_completion("architect")
+    const validation_msg = read_last_message_from("architect")
+    if (validation_msg.contains("ERRORS")) {
+      ABORT("Architect rejected plan", validation_msg)
+    }
+    announce("✓ Architect validated plan")
 
-    # WARNINGS: Quality checks
-    if not plan.risk_assessment:
-        warnings.append("No risk assessment provided")
+    // PHASE D: Delegate to wave-coordinator
+    announce("[Phase D: Execution]")
+    const plan = read_plan(`PHASE_${phase_num}_PLAN.md`)
 
-    if not plan.skills_per_task:
-        warnings.append("Skills not assigned to tasks")
+    for (wave of plan.waves) {
+      TaskCreate({
+        subject: `Execute Wave ${wave.number} (${wave.tasks.length} tasks)`,
+        description: `Wave spec: ${JSON.stringify(wave)}
 
-    return ValidationResult(errors=errors, warnings=warnings)
-```
+          Spawn builder sub-swarm (one per task).
+          Monitor execution, handle retries.
+          Git checkpoint after wave.
+          Report completion.`,
+        owner: "wave-coordinator"
+      })
 
-If errors exist → ABORT with specific error messages.
-If only warnings → Log warnings and PROCEED.
+      wait_for_task_completion("wave-coordinator")
+      announce(`✓ Wave ${wave.number} complete`)
+    }
 
-Add validation note to plan:
-```markdown
-> ✅ **Auto-validated [timestamp]**
-> Errors: 0 | Warnings: [N]
-> Proceeding to execution
-```
+    // PHASE E-F: Delegate to quality-lead
+    announce("[Phase E-F: Quality]")
+    TaskCreate({
+      subject: `Execute Phase E-F for Phase ${phase_num}`,
+      description: `Phase E: Spawn refactor sub-swarm
+        Phase F: Spawn review sub-swarm (code + security)
+        Handle auto-retry on BLOCKED reviews.
+        Report APPROVED or BLOCKED.`,
+      owner: "quality-lead"
+    })
 
-## Phase D: Execution with Auto-Retry
+    wait_for_task_completion("quality-lead")
+    const review_msg = read_last_message_from("quality-lead")
+    if (review_msg.contains("BLOCKED")) {
+      ABORT("Quality-lead reported blocked review", review_msg)
+    }
+    announce("✓ Quality review passed")
 
-For each wave in the plan:
+    // PHASE G: Delegate to scribe
+    announce("[Phase G: Status Update]")
+    TaskCreate({
+      subject: `Update status for Phase ${phase_num}`,
+      description: `Extract beads from PHASE_${phase_num}_PLAN.md
+        Update HANDOFF.md
+        Create git tag v${version}-phase-${phase_num}`,
+      owner: "scribe"
+    })
 
-```
-for wave in plan.waves:
-    # Spawn all tasks in parallel
-    workers = []
-    for task in wave.tasks:
-        worker = spawn GO:Builder with:
-            - task spec from plan
-            - context files
-            - skill requirements
-        workers.append(worker)
+    wait_for_task_completion("scribe")
+    announce(`✓ Phase ${phase_num} complete`)
+  }
 
-    # Collect results
-    results = wait_all(workers)
+  // PHASE H: Delegate to verifier
+  announce("[Phase H: Final Verification]")
+  TaskCreate({
+    subject: "Execute Phase H - Final Verification",
+    description: `Spawn test sub-swarm (unit, integration, regression)
+      Generate FINAL_VERIFICATION.md and PROJECT_REPORT.md
+      Report VERIFIED or ISSUES FOUND`,
+    owner: "verifier"
+  })
 
-    # Handle failures
-    for result in results:
-        if result.status == FAILED:
-            retry_result = auto_retry_task(result, max_attempts=2)
-            if retry_result.status == FAILED:
-                ABORT("Task failed after max retries", retry_result)
+  wait_for_task_completion("verifier")
+  announce("✓ Verification complete")
 
-    # Git checkpoint
-    git_add(wave.files)
-    git_commit(wave.commit_message)
+  // Cleanup
+  announce("Cleaning up team...")
+  Teammate({ operation: "cleanup" })
+  announce("✓ Team disbanded")
 
-    # Update plan with notes
-    append_agent_notes(plan, results)
-```
-
-### Auto-Retry Logic
-
-```python
-def auto_retry_task(failure, max_attempts):
-    for attempt in range(1, max_attempts + 1):
-        if failure.confidence < 80:
-            return ABORT("Low confidence fix, needs human review")
-
-        # Spawn retry worker with fix context
-        retry_worker = spawn GO:Builder with:
-            - original task spec
-            - failure.suggested_fix
-            - failure.root_cause
-            - "This is retry attempt {attempt}"
-
-        result = wait(retry_worker)
-
-        if result.status == SUCCESS:
-            log(f"🟢 Auto-recovered on attempt {attempt}")
-            return result
-
-        failure = result  # Update for next iteration
-
-    return FAILED_AFTER_RETRIES
-```
-
-## Phase E: Code Shortening
-
-```
-major_files = identify_major_files(phase_num)
-
-for file in major_files:
-    spawn GO:Refactor with:
-        - file path
-        - current tests
-        - "Reduce code without changing behavior"
-
-collect shortening notes
-append to PHASE_{phase_num}_PLAN.md
-```
-
-## Phase F: Code Review with Auto-Retry
-
-```
-# Spawn reviewers in parallel
-code_reviewer = spawn GO:Code Reviewer
-security_reviewer = spawn GO:Security Reviewer
-
-code_result = wait(code_reviewer)
-security_result = wait(security_reviewer)
-
-if both APPROVED:
-    proceed to Phase G
-
-if any BLOCKED:
-    for issue in blocked_issues:
-        fix_result = auto_fix_issue(issue, max_attempts=2)
-        if fix_result == STILL_BLOCKED:
-            ABORT("Review issue unfixable", issue)
-
-    # Re-run review
-    repeat Phase F (max 2 full cycles)
+  announce("✅ Build complete!")
+}
 ```
 
-## Phase G: Status Update (Lite)
+## Helper Functions
 
-**Simplified for autonomous mode** — no RESTART_PROMPT needed.
+```javascript
+function auto_validate_plan(plan_path) {
+  const plan = read_plan(plan_path)
+  const errors = []
+  const warnings = []
 
-```
-1. Extract beads from PHASE_{phase_num}_PLAN.md
-2. Append to HANDOFF.md Beads Log
-3. Update HANDOFF.md Git Log
-4. Create git tag: v{version}-phase-{phase_num}
-5. Commit: "chore(phase-{phase_num}): complete"
-```
+  // Structure checks (must pass)
+  for (task of plan.tasks) {
+    if (!task.done_when || !is_numbered_list(task.done_when)) {
+      errors.push(`Task ${task.id}: Missing numbered Done When criteria`)
+    }
+    if (!task.smoke_tests || !all_runnable(task.smoke_tests)) {
+      errors.push(`Task ${task.id}: Smoke tests must be runnable commands`)
+    }
+  }
 
-**NOT created** (unlike GO-Build):
-- ~~RESTART_PROMPT_PHASE_{N+1}.md~~
-- ~~HANDOFF_PHASE_{N}.md~~
+  if (!plan.file_ownership_table) {
+    errors.push("Missing File Ownership Guarantee table")
+  } else {
+    const conflicts = find_parallel_write_conflicts(plan.file_ownership_table)
+    if (conflicts.length > 0) {
+      errors.push(`Parallel write conflicts: ${conflicts}`)
+    }
+  }
 
-## Phase H: Final Verification
+  // Quality checks (warnings)
+  if (!plan.risk_assessment) {
+    warnings.push("No risk assessment provided")
+  }
 
-After all phases complete:
+  return { errors, warnings }
+}
 
-```
-spawn GO:Verifier with:
-    - All PHASE_*_PLAN.md files
-    - REQUIREMENTS.md (if exists)
-    - Full test suite
+function auto_retry_task(failure, max_attempts) {
+  for (attempt = 1; attempt <= max_attempts; attempt++) {
+    if (failure.confidence < 80) {
+      return { status: "failed", reason: "Low confidence fix" }
+    }
 
-wait for:
-    - FINAL_VERIFICATION.md
-    - PROJECT_REPORT.md
+    const retry_worker = Task({
+      subagent_type: "general-purpose",
+      prompt: load_agent("agents/go-builder.md") + `
+        RETRY CONTEXT:
+        - Previous error: ${failure.error}
+        - Root cause: ${failure.root_cause}
+        - Suggested fix: ${failure.suggested_fix}
+        - Attempt: ${attempt} of ${max_attempts}
 
-if verification.status == VERIFIED:
-    announce("✅ Autonomous build complete. All verifications passed.")
-else:
-    announce("⚠️ Build complete with issues. See FINAL_VERIFICATION.md")
+        Apply the fix and re-run smoke tests.`
+    })
+
+    const result = wait(retry_worker)
+    if (result.status === "success") {
+      return { status: "success", attempts: attempt }
+    }
+  }
+
+  return { status: "failed", reason: "Max retries exceeded" }
+}
+
+function wait_for_task_completion(owner) {
+  while (true) {
+    const tasks = TaskList()
+    const owner_task = tasks.find(t => t.owner === owner && t.status === "in_progress")
+
+    if (!owner_task) {
+      // Check for completed task
+      const completed = tasks.find(t => t.owner === owner && t.status === "completed")
+      if (completed) return
+    }
+
+    wait(5_seconds)
+  }
+}
 ```
 
 ## Abort Protocol
@@ -334,19 +535,17 @@ On any ABORT:
 ## 🔴 Autonomous Build Aborted
 
 **Phase**: {phase_num}
-**Stage**: {A|B|C|D|E|F|G}
+**Stage**: {A|B|C|D|E|F|G|H}
+**Architecture**: {simple|swarm}
 **Reason**: {reason}
 
 ### Context
 {full error context}
 
-### Files Created
-{list of files created before abort}
-
 ### Recovery Options
-1. Fix the issue manually and run `/go:auto` from Phase {phase_num}
-2. Switch to `/go:kickoff {phase_num}` for human-guided execution
-3. Review PHASE_{phase_num}_PLAN.md for details
+1. Fix the issue manually and re-run `/go:auto`
+2. Switch to `/go:simple` or `/go:swarm` to force architecture
+3. Review {relevant files} for details
 
 ### Git State
 Last commit: {commit_hash}
@@ -354,40 +553,3 @@ Tag: v{version}-phase-{phase_num}-aborted
 ```
 
 Create abort tag: `git tag v{version}-phase-{phase_num}-aborted`
-
-## Output Summary
-
-On successful completion:
-
-```markdown
-## ✅ Autonomous Build Complete
-
-**Phases**: {N} completed
-**Duration**: {time}
-**Mode**: Fully autonomous
-
-### Per-Phase Summary
-| Phase | Tasks | Tests | Auto-Retries | Status |
-|-------|-------|-------|--------------|--------|
-| 1 | 5 | 23 | 0 | ✅ |
-| 2 | 8 | 41 | 1 | ✅ |
-| 3 | 4 | 18 | 0 | ✅ |
-
-### Artifacts Created
-- PHASE_1_PLAN.md ... PHASE_{N}_PLAN.md
-- BUILD_GUIDE_PHASE_1.md ... BUILD_GUIDE_PHASE_{N}.md
-- HANDOFF.md (updated with all beads)
-- FINAL_VERIFICATION.md
-- PROJECT_REPORT.md
-
-### Git Tags
-- v{version}-phase-1
-- v{version}-phase-2
-- ...
-- v{version}-final
-
-### Next Steps
-1. Review FINAL_VERIFICATION.md for any issues
-2. Review PROJECT_REPORT.md for build analysis
-3. Run `/go:verify` if additional verification needed
-```
