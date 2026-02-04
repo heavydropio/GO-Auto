@@ -1,0 +1,96 @@
+{
+  "version": "1.0",
+  "modules": [
+    {
+      "id": "administrative",
+      "file": "MODULE_ADMINISTRATIVE.md",
+      "source": "built-in",
+      "trigger_phrases": ["schedule", "calendar", "appointment", "meeting", "contact list", "address book", "directory", "to-do", "task list", "reminders", "settings", "preferences", "configuration"],
+      "packages": ["calendar", "contacts", "tasks", "settings"]
+    },
+    {
+      "id": "financial",
+      "file": "MODULE_FINANCIAL.md",
+      "source": "built-in",
+      "trigger_phrases": ["invoice", "bill", "billing", "payment", "pay", "charge", "accounts receivable", "AR", "collections", "accounts payable", "AP", "vendors", "expense", "receipt", "reimbursement", "budget", "forecast", "P&L"],
+      "packages": ["invoicing", "payments", "accounts_receivable", "accounts_payable", "expenses"]
+    },
+    {
+      "id": "field_service",
+      "file": "MODULE_FIELD_SERVICE.md",
+      "source": "built-in",
+      "trigger_phrases": ["dispatch", "assign job", "schedule tech", "field", "on-site", "at customer location", "work order", "service ticket", "offline", "no signal", "sync later", "mobile app", "tablet", "phone", "inspection", "checklist", "form"],
+      "packages": ["dispatch", "mobile", "offline_sync", "inspections"]
+    },
+    {
+      "id": "inventory",
+      "file": null,
+      "source": "built-in",
+      "trigger_phrases": ["inventory", "stock", "warehouse", "transfer", "move stock", "location", "reorder", "low stock", "purchase order", "SKU", "part number", "item", "count", "cycle count", "audit"],
+      "packages": []
+    },
+    {
+      "id": "reporting",
+      "file": null,
+      "source": "built-in",
+      "trigger_phrases": ["dashboard", "metrics", "KPI", "report", "export", "download", "chart", "graph", "visualization", "scheduled report", "email report"],
+      "packages": []
+    },
+    {
+      "id": "crm",
+      "file": "MODULE_CRM.md",
+      "source": "built-in",
+      "trigger_phrases": ["customer", "client", "account", "contact history", "interaction", "touchpoint", "lead", "prospect", "opportunity", "customer profile", "360 view"],
+      "packages": ["customer_management", "interaction_tracking", "lifecycle"]
+    },
+    {
+      "id": "hr_people",
+      "file": null,
+      "source": "built-in",
+      "trigger_phrases": ["employee", "staff", "team member", "time tracking", "clock in", "timesheet", "payroll", "pay", "compensation", "PTO", "leave", "vacation", "time off", "org chart", "reporting structure"],
+      "packages": []
+    },
+    {
+      "id": "sales",
+      "file": null,
+      "source": "built-in",
+      "trigger_phrases": ["pipeline", "deals", "opportunities", "quote", "proposal", "estimate", "order", "purchase", "buy", "commission", "quota", "target", "forecast", "projection"],
+      "packages": []
+    },
+    {
+      "id": "procurement",
+      "file": null,
+      "source": "built-in",
+      "trigger_phrases": ["vendor", "supplier", "source", "purchase order", "PO", "requisition", "receiving", "goods receipt", "delivery", "RFQ", "bid", "sourcing"],
+      "packages": []
+    },
+    {
+      "id": "project_job",
+      "file": null,
+      "source": "built-in",
+      "trigger_phrases": ["project", "job", "engagement", "task", "work item", "assignment", "resource", "allocation", "capacity", "milestone", "deadline", "timeline", "budget", "cost tracking", "burn rate"],
+      "packages": []
+    },
+    {
+      "id": "communication",
+      "file": null,
+      "source": "built-in",
+      "trigger_phrases": ["email", "message", "send", "chat", "instant message", "Slack", "notification", "alert", "remind", "template", "canned response"],
+      "packages": []
+    },
+    {
+      "id": "documents",
+      "file": null,
+      "source": "built-in",
+      "trigger_phrases": ["document", "file", "attachment", "template", "generate", "merge", "signature", "e-sign", "DocuSign", "version", "revision", "history"],
+      "packages": []
+    },
+    {
+      "id": "compliance",
+      "file": null,
+      "source": "built-in",
+      "trigger_phrases": ["audit", "audit trail", "log", "compliance", "regulation", "requirement", "certification", "license", "credential", "policy", "procedure", "acknowledgment", "HIPAA", "SOC2", "GDPR", "PCI"],
+      "packages": []
+    }
+  ]
+}
