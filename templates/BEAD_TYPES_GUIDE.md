@@ -149,6 +149,65 @@ Status: Validated in Phase 6 - 200 tokens proved sufficient for all test handoff
 
 ---
 
+### UI Design Specification (type=ui-design-spec)
+
+**When to create**: Entity, API, or workflow changes that impact existing UI screens.
+
+**What to include**:
+- What changed (entity field, API endpoint, workflow step)
+- Impact type (entity_change, new_endpoint, api_shape_change, enum_change, workflow_change)
+- Which screens are affected
+- What the UI needs to accommodate
+
+**Example**:
+```bash
+bd create "UI-DS-001: Filing.archived field added" \
+  -t ui-design-spec \
+  -p 2 \
+  --body "Impact: New boolean field 'archived' added to Filing entity.
+
+Type: entity_change
+Entity: Filing
+Field: archived (boolean)
+
+Screens Affected:
+- filing_list: Needs filter toggle and column display
+- filing_detail: Needs archived status badge
+
+Source: Phase 2 - Core Data Layer"
+```
+
+---
+
+### UI Design Decision (type=ui-design-decision)
+
+**When to create**: Design choices for UI that affect user experience or component architecture.
+
+**What to include**:
+- What was decided
+- Alternatives considered
+- Why this choice over others
+- Which screens/components affected
+
+**Example**:
+```bash
+bd create "UI-DD-001: Use modal for filing archive confirmation" \
+  -t ui-design-decision \
+  -p 2 \
+  --body "Decision: Archive action uses confirmation modal instead of inline.
+
+Alternatives:
+1. Inline confirmation (simpler, but easy to miss)
+2. Page navigation (too disruptive for single action)
+3. Modal dialog (chosen - clear, reversible, matches delete pattern)
+
+Rationale: Matches existing delete workflow. Clear destructive action pattern.
+
+Screens: filing_list, filing_detail"
+```
+
+---
+
 ### GO Feedback (type=go-friction)
 
 **When to create**: The GO framework itself caused friction (not project-specific issues).
@@ -200,6 +259,8 @@ Use consistent prefixes for queryability:
 | Pivot | PV-NNN | PV-001: Manual handoffs for MVP |
 | Assumption | AS-NNN | AS-001: 200 tokens for tacit message |
 | GO Feedback | GF-NNN | GF-001: Missing TD aggregation |
+| UI Design Spec | UI-DS-NNN | UI-DS-001: Filing.archived field added |
+| UI Design Decision | UI-DD-NNN | UI-DD-001: Use modal for archive confirmation |
 
 Numbers are sequential per type within the project.
 
@@ -273,6 +334,12 @@ bd create "AS-NNN: [Brief title]" -t assumption -p [1-4]
 
 # GO Feedback: Framework friction
 bd create "GF-NNN: [Brief title]" -t go-friction -p [1-4]
+
+# UI Design Spec: Backend change affecting UI
+bd create "UI-DS-NNN: [Brief title]" -t ui-design-spec -p [1-4]
+
+# UI Design Decision: UI/UX choice
+bd create "UI-DD-NNN: [Brief title]" -t ui-design-decision -p [1-4]
 ```
 
 Priority levels:

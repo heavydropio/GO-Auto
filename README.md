@@ -191,6 +191,130 @@ Even in autonomous mode, GO-Auto captures decisions:
 
 These are stored in HANDOFF.md and help with post-build debugging.
 
+## UI Build Phase
+
+After all implementation phases complete, GO-Auto supports an optional UI build phase that generates React components from R4 screen specifications.
+
+### Philosophy: Track & Build Late
+
+Instead of sketching UI during discovery (which drifts by implementation time), GO-Auto:
+
+1. **Tracks UI impacts** during build phases (entity changes, API changes, workflows)
+2. **Builds UI fresh** at the end with complete context
+3. **Supports iteration** through a documented refinement workflow
+
+### UI Impact Tracking (Automatic)
+
+During phases A-G, a PostToolUse hook automatically creates UI-DS (Design Specification) beads when you modify:
+- Entity fields that appear in UI
+- API endpoints the UI consumes
+- Workflows affecting multi-step UI
+- Enums displayed in dropdowns or badges
+
+These impacts are logged in HANDOFF.md under "UI Impact Log".
+
+### Running the UI Phase
+
+```bash
+# After all build phases complete
+/go-auto:ui generate              # Generate all screens
+/go-auto:ui generate dashboard    # Generate single screen
+
+# Iterate on generated code
+/go-auto:ui refine Dashboard "make table columns wider"
+/go-auto:ui refine LoginForm "add forgot password link"
+
+# Validate generated code
+/go-auto:ui validate
+```
+
+### UI Bead Types
+
+| Type | Prefix | Purpose |
+|------|--------|---------|
+| UI Design Spec | UI-DS-NNN | Backend change affecting UI (auto-detected) |
+| UI Design Decision | UI-DD-NNN | UI/UX choice made during refinement |
+
+### Refinement Workflow (Important!)
+
+UI generation is iterative. The system is designed for multiple refinement passes:
+
+```
+Generate → Review → Refine → Review → Refine → Done
+```
+
+Each refinement:
+1. Reads the existing generated code
+2. Applies the requested changes
+3. Preserves existing logic
+4. Creates a UI-DD bead documenting the change
+5. Re-validates the result
+
+**Example session:**
+```bash
+# 1. Generate all screens
+/go-auto:ui generate
+
+# 2. Start dev server and review
+npm run dev
+
+# 3. Note issues (or use observe)
+/go-auto:ui observe http://localhost:3000
+
+# 4. Refine specific issues
+/go-auto:ui refine Dashboard "Table needs pagination"
+/go-auto:ui refine UserList "Add search filter at top"
+
+# 5. Validate final code
+/go-auto:ui validate
+```
+
+### Documentation at Every Step
+
+Every generation and refinement is documented:
+
+**In HANDOFF.md:**
+```markdown
+## UI Generation Log
+| Screen | Generated | Refinements | Final Status |
+|--------|-----------|-------------|--------------|
+| Dashboard | 2026-02-03 | 2 | Approved |
+```
+
+**In Screen File Headers:**
+```tsx
+/**
+ * Dashboard Screen
+ * Generated: 2026-02-03
+ * Source: R4_SCREENS.md#dashboard
+ * UI Impacts Applied: UI-001, UI-003
+ *
+ * Refinements:
+ * - 2026-02-03: Adjusted table widths (UI-DD-042)
+ */
+```
+
+**In Beads:**
+```bash
+bd list -t ui-design-decision    # See all UI refinements
+bd list -t ui-design-spec        # See all tracked impacts
+```
+
+### Output Structure
+
+```
+src/components/
+├── screens/           # Generated screens
+│   ├── Dashboard.tsx
+│   └── UserList.tsx
+├── ui/                # shadcn/ui components (existing)
+└── generated/         # Supporting generated files
+    ├── types.ts
+    └── hooks.ts
+```
+
+For full UI command documentation, see `commands/ui.md`.
+
 ## Installation
 
 ```bash

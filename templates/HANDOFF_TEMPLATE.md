@@ -52,6 +52,27 @@ Track all significant decisions, discoveries, assumptions, friction points, and 
 
 ---
 
+## UI Impact Log
+
+Changes during build phases that affect UI screens. Auto-populated by ui-impact-detection hook.
+
+| ID | Type | Summary | Details | Screens Affected | Bead |
+|----|------|---------|---------|------------------|------|
+| UI-001 | entity_change | {{ field/entity change }} | {{ what UI needs }} | {{ screen_id, screen_id }} | UI-DS-NNN |
+
+**Impact Types**: entity_change, new_endpoint, api_shape_change, enum_change, workflow_change
+
+**When entries are added**:
+- Entity field added/removed/changed that appears in UI
+- New API endpoint that UI will consume
+- Response shape change affecting data bindings
+- Enum value added/removed affecting dropdowns or badges
+- Workflow step change affecting wizard or multi-step UI
+
+**UI Phase**: After all build phases, run `/go-auto:ui` to generate screens based on this log.
+
+---
+
 ## Deferred Issues
 
 Issues that couldn't be fixed in the current phase.
