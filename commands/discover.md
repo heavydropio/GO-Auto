@@ -1,371 +1,392 @@
 ---
-description: Discover what to build through guided conversation. Automatically routes to light path (focused projects) or full path (complex projects with R2-R7).
+description: Discover what to build through guided conversation. After R1, runs autonomously through discovery, preflight, and build.
 arguments:
   - name: round
     description: "Optional: Specific round (R2-R7), --resume, or --status"
     required: false
 ---
 
-# /go:discover [round] — Project Discovery
+# /go-auto:discover [round] — Autonomous Project Discovery & Build
 
-You are the **Boss** running discovery to understand what to build before building it.
+You are the **Boss** running discovery to understand what to build, then building it autonomously.
 
-**Announce**: "Let's figure out what we're building. Tell me about your project and the problem it solves."
+**Announce**: "Let's figure out what we're building. Tell me about your project and the problem it solves. After our conversation, I'll run everything autonomously."
 
 ## Purpose
 
-Discovery is the entry point for every GO Build project. A natural conversation captures what you're building, who it's for, and what it needs to do.
+Discovery is the entry point for GO-Auto projects. A natural conversation (R1) captures what you're building, who it's for, and what it needs to do.
 
-After the conversation, the system assesses project complexity and routes to one of two paths:
+**After R1 completes, everything runs autonomously:**
 
-**Light path** (focused projects):
-- Produces a USE_CASE template, simple ROADMAP, and discovery state
-- Skips R2-R7 — entity design, workflows, screens happen during build
-- Best for: CLI tools, single-purpose apps, MVPs, small APIs
+```
+R1 Conversation (interactive)
+     ↓
+Scope Assessment → LITE or FULL path
+     ↓
+[AUTONOMOUS FROM HERE]
+     ↓
+├── LITE: Generate ROADMAP.md
+│
+└── FULL: Auto-run R2-R7 (no checkpoints)
+     ↓
+Auto-run /go-auto:preflight
+     ↓
+Auto-run /go-auto:auto (all build phases)
+     ↓
+Auto-run /go-auto:ui generate (if screens defined)
+     ↓
+BUILD COMPLETE
+```
 
-**Full path** (complex projects):
-- Runs R2-R7: entities, workflows, screens, edge cases, tech lock-in, build plan
-- Uses module catalogs to draft artifacts, you validate at checkpoints
-- Best for: multi-actor systems, compliance-heavy apps, projects with integrations
-
-**Output**: A `discovery/` folder with `discovery-state.json`, `USE_CASE.yaml`, and either a simple `ROADMAP.md` (light) or full round artifacts through `DISCOVERY_COMPLETE.md` (full).
+**Output**: A fully built project with all artifacts, tests, and documentation.
 
 ---
 
-## Core Rules
+## The One Conversation
 
-1. **Artifacts over conversation** — Each round produces a concrete file, not just discussion
-2. **Inference with transparency** — Every assumption gets a confidence level (high/medium/low)
-3. **Show, don't tell** — Users validate by reviewing specs, not reading summaries
-4. **Progressive disclosure** — Start simple, add complexity as rounds progress
-5. **Parallelization detection** — R3 identifies independent tracks for concurrent building
-6. **No building until ready** — Readiness gates must pass before /go:preflight
+R1 is the **only interactive part**. Make it count.
+
+### What to Cover in R1
+
+1. **Problem Statement**: What problem does this solve?
+2. **Users/Actors**: Who uses it? What are their roles?
+3. **Core Features**: What must it do? (MVP scope)
+4. **Technical Context**: Language, framework, integrations?
+5. **Constraints**: Timeline, must-haves, must-avoids?
+
+### R1 Outputs
+
+- `discovery/USE_CASE.yaml` — Structured capture of the conversation
+- `discovery/discovery-state.json` — State tracking
+- Path decision: LITE or FULL
+
+### Scope Assessment Criteria
+
+**Route to LITE path when:**
+- Single actor or simple actor model
+- ≤3 core workflows
+- No complex integrations
+- CLI tool, simple API, or single-purpose app
+
+**Route to FULL path when:**
+- Multiple actors with different permissions
+- >3 workflows with dependencies
+- External integrations (payments, auth providers, etc.)
+- Multi-step wizards or complex UI
+
+---
+
+## Autonomous Execution (After R1)
+
+### LITE Path Flow
+
+```
+R1 complete → LITE path selected
+     ↓
+1. Generate ROADMAP.md (1 phase per module + integration)
+2. Update discovery-state.json with path: "light"
+3. Auto-run /go-auto:preflight
+4. Auto-run /go-auto:auto (all phases)
+5. Report completion
+```
+
+No R2-R7 rounds. Entity design and workflows happen during build.
+
+### FULL Path Flow
+
+```
+R1 complete → FULL path selected
+     ↓
+1. Spawn R2 (Entities) + R3 (Workflows) in parallel
+2. Wait for both, validate outputs programmatically
+3. Spawn R4 (Screens)
+4. Spawn R5 (Edge Cases)
+5. Spawn R6 (Technical Lock-in)
+6. Spawn R7 (Build Plan) → Creates ROADMAP.md
+7. Update discovery-state.json with path: "full"
+8. Auto-run /go-auto:preflight
+9. Auto-run /go-auto:auto (all phases)
+10. Auto-run /go-auto:ui generate (if R4 defined screens)
+11. Report completion
+```
+
+**No user checkpoints between rounds.** Agents validate each other's outputs.
+
+---
+
+## Agent Delegation (FULL Path)
+
+### R2 + R3: Parallel Execution
+
+Spawn both simultaneously after scope assessment:
+
+| Agent | Input | Output |
+|-------|-------|--------|
+| GO:Discovery Entity Planner | USE_CASE.yaml, module catalogs | R2_ENTITIES.md |
+| GO:Discovery Workflow Analyst | USE_CASE.yaml, module catalogs | R3_WORKFLOWS.md |
+
+**Auto-validation**: Check for entity-workflow consistency. If entities referenced in workflows don't exist in R2, flag as warning and continue.
+
+### R4-R7: Sequential Execution
+
+Each agent runs automatically after the previous completes:
+
+| Round | Agent | Input | Output |
+|-------|-------|-------|--------|
+| R4 | GO:Discovery UI Planner | R2, R3 | R4_SCREENS.md |
+| R5 | GO:Discovery Edge Case Analyst | R2-R4 | R5_EDGE_CASES.md |
+| R6 | GO:Discovery Tech Architect | R2-R5 | R6_DECISIONS.md |
+| R7 | GO:Discovery Build Planner | R2-R6 | DISCOVERY_COMPLETE.md + ROADMAP.md |
+
+**No boss checkpoints.** Each agent reads previous outputs and proceeds.
+
+---
+
+## Auto-Validation Between Rounds
+
+Instead of user approval, programmatic checks:
+
+### After R2 + R3
+
+```
+- All entities have at least one workflow reference
+- All workflow actors exist in USE_CASE actors
+- No circular dependencies in workflows
+- Parallelization tracks identified
+```
+
+### After R4
+
+```
+- Every workflow has at least one screen
+- Screen fields map to entity attributes
+- No orphan screens (screens without workflows)
+```
+
+### After R5
+
+```
+- Edge cases reference valid workflows
+- Each edge case has a resolution strategy
+- No "TBD" resolutions for P1 edge cases
+```
+
+### After R6
+
+```
+- All external integrations have locked decisions
+- Framework/language decisions are final
+- No conflicting technology choices
+```
+
+### After R7
+
+```
+- ROADMAP.md has valid phase structure
+- All entities assigned to phases
+- Smoke tests defined for each phase
+- Readiness gates pass
+```
+
+If validation fails with errors → **ABORT** with detailed report.
+If validation has warnings → Log and continue.
+
+---
+
+## Blocking Issues in Autonomous Mode
+
+**Hard blockers still stop execution:**
+
+- Ambiguous requirements that can't be inferred
+- Conflicting constraints (e.g., "must be serverless" + "must use PostgreSQL")
+- Missing critical information (e.g., no auth strategy for multi-actor system)
+
+On hard blocker:
+1. Stop autonomous execution
+2. Present blocker to user with specific question
+3. After user answers, resume from current point
+
+**Soft blockers are logged and deferred** to build phase.
 
 ---
 
 ## State Management
 
-### Initialize State (First Run)
-
-Create `discovery/discovery-state.json`:
+### discovery-state.json
 
 ```json
 {
   "project": "{{ project_name }}",
+  "mode": "autonomous",
+  "path": "light|full",
   "created": "{{ ISO_DATE }}",
-  "updated": "{{ ISO_DATE }}",
   "current_round": "R1",
-  "readiness": "NOT_READY",
+  "readiness": "NOT_READY|READY",
+  "autonomous_stage": "discovery|preflight|build|ui|complete",
 
   "rounds": {
-    "R1": { "name": "Context & Intent", "status": "pending", "output_file": "discovery/R1_CONTEXT.md" },
-    "R1.5": { "name": "Module Selection", "status": "pending", "output_file": null },
-    "R2": { "name": "Entities", "status": "pending", "output_file": "discovery/R2_ENTITIES.md", "can_parallel_with": ["R3"] },
-    "R3": { "name": "Workflows", "status": "pending", "output_file": "discovery/R3_WORKFLOWS.md", "can_parallel_with": ["R2"] },
-    "R4": { "name": "Screens", "status": "pending", "output_file": "discovery/R4_SCREENS.md" },
-    "R5": { "name": "Edge Cases", "status": "pending", "output_file": "discovery/R5_EDGE_CASES.md" },
-    "R6": { "name": "Technical Lock-in", "status": "pending", "output_file": "discovery/R6_DECISIONS.md" },
-    "R7": { "name": "Build Plan", "status": "pending", "output_file": "discovery/DISCOVERY_COMPLETE.md" }
+    "R1": { "status": "complete", "output_file": "discovery/R1_CONTEXT.md" },
+    ...
   },
 
-  "modules": { "selected": [], "packages": {} },
-  "entities": [],
-  "workflows": [],
-  "screens": [],
-  "edge_cases": [],
-  "decisions": [],
-  "parallelization": { "tracks": [], "integration_points": [] },
-  "blocking_issues": [],
-
-  "readiness_gates": {
-    "all_rounds_complete": false,
-    "no_hard_blockers": false,
-    "confidence_threshold_met": false,
-    "modules_validated": false
-  },
-
-  "research": {
-    "standalone": null,
-    "on_demand": []
+  "validation_results": {
+    "R2_R3": { "passed": true, "warnings": [] },
+    "R4": { "passed": true, "warnings": [] },
+    ...
   }
 }
 ```
 
-### Update State
+### Tracking Progress
 
-After each round:
-1. Update `rounds[RN].status` to "complete"
-2. Update `rounds[RN].completed` timestamp
-3. Update `current_round` to next round
-4. Add any blocking_issues discovered
-5. Update `readiness_gates` as conditions are met
-6. Save to `discovery/discovery-state.json`
-
----
-
-## Research Artifact Detection
-
-Before starting R1, check for prior research:
-
-1. Check if `research/RESEARCH_FINDINGS.md` exists
-2. Check if `research/RESEARCH_RECOMMENDATIONS.md` exists
-3. Check if any `discovery/templates/MODULE_*_GENERATED.md` files exist
-
-If research artifacts are found:
-1. Read findings and recommendations
-2. Pre-fill USE_CASE fields that have clear answers from research (see field mapping in research/RESEARCH_HANDOFF_SCHEMA.md)
-3. In R1 conversation, confirm pre-filled fields instead of asking from scratch
-4. Only gap-fill fields not covered by research
-5. Set discovery-state.json `research.standalone` with file paths and timestamp
-6. Auto-select any research-generated modules found in MODULE_CATALOG.json with source: "research"
-
-If no research artifacts found, proceed with normal R1 flow.
-
----
-
-## Round Progression
-
-| Round | Name | Path | Parallel | Entry Requires | Output |
-|-------|------|------|----------|----------------|--------|
-| R1 | Conversational Discovery | Both | — | User has project idea | USE_CASE.yaml |
-| — | Scope Assessment | Both | — | R1 complete | Path decision (light/full) |
-| R2 | Entities | Full only | with R3 | Full path selected | R2_ENTITIES.md |
-| R3 | Workflows | Full only | with R2 | Full path selected | R3_WORKFLOWS.md |
-| R4 | Screens | Full only | — | R2 AND R3 complete | R4_SCREENS.md |
-| R5 | Edge Cases | Full only | — | R4 complete | R5_EDGE_CASES.md |
-| R6 | Technical Lock-in | Full only | — | R5 complete | R6_DECISIONS.md |
-| R7 | Build Plan | Full only | — | R6 complete, no hard blockers | DISCOVERY_COMPLETE.md |
-
----
-
-## Round Details
-
-Each round has its own template file:
-- `discovery/templates/ROUND_1_CONTEXT.md`
-- `discovery/templates/ROUND_1_5_MODULES.md`
-- `discovery/templates/ROUND_2_ENTITIES.md`
-- `discovery/templates/ROUND_3_WORKFLOWS.md`
-- `discovery/templates/ROUND_4_SCREENS.md`
-- `discovery/templates/ROUND_5_EDGE_CASES.md`
-- `discovery/templates/ROUND_6_LOCK_IN.md`
-- `discovery/templates/ROUND_7_BUILD_PLAN.md`
-
-### Agent Delegation (Full Path Only)
-
-R1 stays with the boss (interactive conversation). R2-R7 each spawn a dedicated agent.
-
-**R2 + R3: Spawn in Parallel**
-
-After scope assessment routes to full path, spawn both simultaneously:
-
-| Agent | subagent_type | Input | Output |
-|-------|---------------|-------|--------|
-| GO:Discovery Entity Planner | `GO:Discovery Entity Planner` | USE_CASE.yaml, module catalogs | R2_ENTITIES.md |
-| GO:Discovery Workflow Analyst | `GO:Discovery Workflow Analyst` | USE_CASE.yaml, module catalogs | R3_WORKFLOWS.md |
-
-Boss validates both outputs before proceeding. Checkpoint with user.
-
-**R4-R7: Spawn Sequentially with Boss Checkpoints**
-
-Each round depends on the previous round's output:
-
-| Round | Agent | subagent_type | Input | Output |
-|-------|-------|---------------|-------|--------|
-| R4 | GO:Discovery UI Planner | `GO:Discovery UI Planner` | R2, R3 | R4_SCREENS.md |
-| R5 | GO:Discovery Edge Case Analyst | `GO:Discovery Edge Case Analyst` | R2-R4 | R5_EDGE_CASES.md |
-| R6 | GO:Discovery Tech Architect | `GO:Discovery Tech Architect` | R2-R5 | R6_DECISIONS.md |
-| R7 | GO:Discovery Build Planner | `GO:Discovery Build Planner` | R2-R6, discovery-state.json | DISCOVERY_COMPLETE.md |
-
-Between each round, the boss:
-1. Reads the agent's output artifact
-2. Presents a summary to the user
-3. Gets approval or revision direction before spawning the next agent
-
-This keeps the boss context lean — it dispatches agents and reviews results rather than accumulating raw output.
-
----
-
-## Parallelization Detection Protocol
-
-During R3 (Workflows), apply this checklist:
-
-### Independence Test
-
-For each pair of workflows (A, B):
-
-1. **Data Independence**
-   - [ ] A does not read data written by B
-   - [ ] B does not read data written by A
-   - [ ] A and B don't modify the same entities
-
-2. **Actor Independence**
-   - [ ] Different primary actors OR
-   - [ ] Same actor but different contexts
-
-3. **Temporal Independence**
-   - [ ] A doesn't need B to complete first
-   - [ ] B doesn't need A to complete first
-
-If all checks pass: Mark as parallelizable.
-
-### Track Formation
-
-Group parallelizable workflows into tracks:
-- Each track = independent buildable unit
-- Tracks share a final integration point
-- Name tracks by their primary function (Financial, CRM, etc.)
-
----
-
-## Blocking Issue Protocol
-
-When a blocking issue is discovered:
-
-1. **Classify Severity**
-   - `hard`: Cannot proceed. Discovery stops until resolved.
-   - `soft`: Can continue but must resolve before /go:preflight.
-   - `warning`: Note for build phase.
-
-2. **Document Issue**
-   ```json
-   {
-     "id": "BI-001",
-     "round": "R3",
-     "description": "Unclear how payments integrate with accounting system",
-     "severity": "hard",
-     "resolution": null,
-     "created": "{{ timestamp }}"
-   }
-   ```
-
-3. **Hard Blocker Response**
-   - Stop current round
-   - Present issue to user
-   - Await resolution before continuing
-
----
-
-## Readiness Gates
-
-Before `/go:preflight` can run, all gates must pass:
-
-| Gate | Check | How to Fix |
-|------|-------|------------|
-| all_rounds_complete | All R1-R7 status = "complete" | Run remaining rounds |
-| no_hard_blockers | No blocking_issues with severity = "hard" | Resolve or escalate |
-| confidence_threshold_met | No core entities/workflows at "low" confidence | Validate with user |
-| modules_validated | modules.selected.length > 0 | Re-run R1.5 |
+The `autonomous_stage` field tracks where we are:
+- `discovery` — Running R1-R7
+- `preflight` — Running environment validation
+- `build` — Running /go-auto:auto
+- `ui` — Running /go-auto:ui generate
+- `complete` — All done
 
 ---
 
 ## Command Variants
 
-### Default: Start Fresh
+### Default: Full Autonomous Run
 ```
-/go:discover
+/go-auto:discover
 ```
-Starts at R1 if no discovery-state.json exists.
+Starts R1 conversation, then runs everything autonomously.
 
-### Resume from Last Round
+### Resume from Interruption
 ```
-/go:discover --resume
+/go-auto:discover --resume
 ```
-Reads discovery-state.json, continues from current_round.
-
-### Jump to Specific Round
-```
-/go:discover R4
-```
-Jumps to R4. Use for revision or debugging. Previous rounds must be complete.
+Reads discovery-state.json, continues from `autonomous_stage`.
 
 ### Check Status
 ```
-/go:discover --status
+/go-auto:discover --status
 ```
-Shows round progress and readiness gates without advancing.
+Shows current stage, round progress, and any blockers.
+
+### Jump to Round (Debug Only)
+```
+/go-auto:discover R4
+```
+For debugging. Runs single round, does NOT continue autonomously.
 
 ---
 
-## Integration with GO Build
+## Output Artifacts
 
-### Flow
+### LITE Path
 
-```
-/go:discover (conversation + scope assessment)
-     ↓
-     ├── Light path: USE_CASE.yaml + ROADMAP.md + discovery-state.json
-     │
-     └── Full path: R2-R7 artifacts + DISCOVERY_COMPLETE.md + discovery-state.json
-          ↓
-/go:preflight reads: discovery-state.json (detects path)
-     ↓
-/go:kickoff uses: ROADMAP.md (light) or parallelization tracks (full)
-```
+| File | When Created |
+|------|--------------|
+| discovery/USE_CASE.yaml | After R1 |
+| discovery/discovery-state.json | Throughout |
+| ROADMAP.md | After scope assessment |
+| PREFLIGHT.md | After preflight |
+| PHASE_*_PLAN.md | During build |
+| HANDOFF.md | During build |
+| FINAL_VERIFICATION.md | After build |
+| PROJECT_REPORT.md | After build |
 
-### What /go:preflight Uses
+### FULL Path
 
-From `discovery-state.json`:
-- `path` — Determines whether to run parallelization checks
-- `modules.packages` — For dependency verification
-- `constraints` — For environment validation
+All LITE artifacts plus:
 
-**Light path only**: Preflight reads `ROADMAP.md` for phase structure. No parallelization checks.
-
-**Full path only**: Preflight also reads `DISCOVERY_COMPLETE.md` for parallelization tracks, tech decisions from R6, and entity/workflow counts for resource estimation.
-
----
-
-## Output Summary
-
-### Light Path
-
-| File | Purpose |
-|------|---------|
-| `discovery/discovery-state.json` | State with `"path": "light"`, modules, actors, constraints |
-| `discovery/USE_CASE.yaml` | Populated template from conversation |
-| `ROADMAP.md` | Simple phase breakdown (one phase per module + integration phase) |
-
-### Full Path
-
-| File | Created By | Purpose |
-|------|------------|---------|
-| `discovery/discovery-state.json` | All rounds | State with `"path": "full"`, all discovery data |
-| `discovery/USE_CASE.yaml` | R1 | Populated template from conversation |
-| `discovery/R2_ENTITIES.md` | R2 | Data model |
-| `discovery/R3_WORKFLOWS.md` | R3 | User flows, parallelization |
-| `discovery/R4_SCREENS.md` | R4 | Screen specifications |
-| `discovery/R5_EDGE_CASES.md` | R5 | Edge cases and resolutions |
-| `discovery/R6_DECISIONS.md` | R6 | Locked technical decisions |
-| `discovery/DISCOVERY_COMPLETE.md` | R7 | Build plan, readiness |
+| File | When Created |
+|------|--------------|
+| discovery/R2_ENTITIES.md | After R2 |
+| discovery/R3_WORKFLOWS.md | After R3 |
+| discovery/R4_SCREENS.md | After R4 |
+| discovery/R5_EDGE_CASES.md | After R5 |
+| discovery/R6_DECISIONS.md | After R6 |
+| discovery/DISCOVERY_COMPLETE.md | After R7 |
+| src/components/screens/*.tsx | After UI phase |
 
 ---
 
-## After Discovery
+## Completion Report
 
-### Light Path Completion
+When everything finishes:
 
 ```markdown
-Discovery complete (light path).
+## GO-Auto Build Complete
 
-Summary:
-- {{ actor_count }} actors
-- {{ module_count }} modules selected
-- {{ phase_count }} phases in roadmap
+**Project**: {{ project_name }}
+**Path**: {{ LITE | FULL }}
+**Duration**: {{ total_time }}
 
-Next: Run `/go:preflight` to validate your environment.
+### Discovery
+- Rounds completed: {{ N }}
+- Entities: {{ count }} (full path only)
+- Workflows: {{ count }} (full path only)
+- Screens: {{ count }} (full path only)
+
+### Build
+- Phases: {{ N }}
+- Tasks: {{ total_tasks }}
+- Tests: {{ total_tests }}
+- Auto-retries: {{ count }}
+
+### UI (if applicable)
+- Screens generated: {{ count }}
+- Refinements: {{ count }}
+
+### Artifacts
+- ROADMAP.md
+- FINAL_VERIFICATION.md
+- PROJECT_REPORT.md
+- {{ phase_count }} phase plans
+- {{ screen_count }} UI components (if applicable)
+
+### Git Tags
+- v{{ version }}-discovery
+- v{{ version }}-phase-1 ... v{{ version }}-phase-N
+- v{{ version }}-final
+
+### Next Steps
+1. Review FINAL_VERIFICATION.md
+2. Run the app and test manually
+3. Use /go-auto:ui refine for UI adjustments
 ```
 
-### Full Path Completion
+---
+
+## Abort Handling
+
+If autonomous execution aborts at any stage:
 
 ```markdown
-Discovery complete (full path).
+## GO-Auto Aborted
 
-Summary:
-- {{ entity_count }} entities
-- {{ workflow_count }} workflows
-- {{ screen_count }} screens
-- {{ parallelization_track_count }} parallel tracks
-- Readiness: READY
+**Stage**: {{ discovery | preflight | build | ui }}
+**Round/Phase**: {{ specific location }}
+**Reason**: {{ error description }}
 
-Next: Run `/go:preflight` to validate your environment.
+### What Was Completed
+{{ list of completed artifacts }}
+
+### Recovery Options
+1. Fix the issue and run `/go-auto:discover --resume`
+2. Switch to manual mode: `/go:kickoff {{ phase }}`
+3. Debug specific round: `/go-auto:discover R{{ N }}`
+
+### Error Details
+{{ full error context }}
 ```
+
+---
+
+## Difference from GO-Build Discovery
+
+| Aspect | GO-Build | GO-Auto |
+|--------|----------|---------|
+| R1 | Interactive | Interactive |
+| R2-R7 | User checkpoints between rounds | Autonomous, no checkpoints |
+| After discovery | User runs /go:preflight manually | Auto-chains to preflight |
+| After preflight | User runs /go:kickoff manually | Auto-chains to build |
+| After build | User runs /go:ui manually | Auto-chains to UI generation |
+
+**GO-Auto is one conversation, then hands-off until completion.**
