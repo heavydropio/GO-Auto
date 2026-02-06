@@ -1,5 +1,6 @@
 {
-  "version": "1.0",
+  "version": "2.0",
+  "last_updated": "2025-02-05",
   "modules": [
     {
       "id": "administrative",
@@ -24,17 +25,17 @@
     },
     {
       "id": "inventory",
-      "file": null,
+      "file": "MODULE_INVENTORY.md",
       "source": "built-in",
       "trigger_phrases": ["inventory", "stock", "warehouse", "transfer", "move stock", "location", "reorder", "low stock", "purchase order", "SKU", "part number", "item", "count", "cycle count", "audit"],
-      "packages": []
+      "packages": ["stock_management", "locations", "receiving", "counting", "transfers"]
     },
     {
       "id": "reporting",
-      "file": null,
+      "file": "MODULE_REPORTING.md",
       "source": "built-in",
       "trigger_phrases": ["dashboard", "metrics", "KPI", "report", "export", "download", "chart", "graph", "visualization", "scheduled report", "email report"],
-      "packages": []
+      "packages": ["reports", "dashboards", "metrics", "delivery"]
     },
     {
       "id": "crm",
@@ -45,52 +46,52 @@
     },
     {
       "id": "hr_people",
-      "file": null,
+      "file": "MODULE_HR_PEOPLE.md",
       "source": "built-in",
       "trigger_phrases": ["employee", "staff", "team member", "time tracking", "clock in", "timesheet", "payroll", "pay", "compensation", "PTO", "leave", "vacation", "time off", "org chart", "reporting structure"],
-      "packages": []
+      "packages": ["employee_management", "time_attendance", "leave_management", "compliance", "onboarding_offboarding"]
     },
     {
       "id": "sales",
-      "file": null,
+      "file": "MODULE_SALES.md",
       "source": "built-in",
       "trigger_phrases": ["pipeline", "deals", "opportunities", "quote", "proposal", "estimate", "order", "purchase", "buy", "commission", "quota", "target", "forecast", "projection"],
-      "packages": []
+      "packages": ["leads", "opportunities", "quoting", "orders"]
     },
     {
       "id": "procurement",
-      "file": null,
+      "file": "MODULE_PROCUREMENT.md",
       "source": "built-in",
       "trigger_phrases": ["vendor", "supplier", "source", "purchase order", "PO", "requisition", "receiving", "goods receipt", "delivery", "RFQ", "bid", "sourcing"],
-      "packages": []
+      "packages": ["requisitions", "purchasing", "vendors", "receiving", "matching"]
     },
     {
       "id": "project_job",
-      "file": null,
+      "file": "MODULE_PROJECT_JOB.md",
       "source": "built-in",
       "trigger_phrases": ["project", "job", "engagement", "task", "work item", "assignment", "resource", "allocation", "capacity", "milestone", "deadline", "timeline", "budget", "cost tracking", "burn rate"],
-      "packages": []
+      "packages": ["projects", "tasks", "time_tracking", "expenses", "resource_allocation"]
     },
     {
       "id": "communication",
-      "file": null,
+      "file": "MODULE_COMMUNICATION.md",
       "source": "built-in",
       "trigger_phrases": ["email", "message", "send", "chat", "instant message", "Slack", "notification", "alert", "remind", "template", "canned response"],
-      "packages": []
+      "packages": ["templates", "delivery", "preferences", "tracking"]
     },
     {
       "id": "documents",
-      "file": null,
+      "file": "MODULE_DOCUMENTS.md",
       "source": "built-in",
       "trigger_phrases": ["document", "file", "attachment", "template", "generate", "merge", "signature", "e-sign", "DocuSign", "version", "revision", "history"],
-      "packages": []
+      "packages": ["storage", "organization", "versioning", "templates", "signatures"]
     },
     {
       "id": "compliance",
-      "file": null,
+      "file": "MODULE_COMPLIANCE.md",
       "source": "built-in",
       "trigger_phrases": ["audit", "audit trail", "log", "compliance", "regulation", "requirement", "certification", "license", "credential", "policy", "procedure", "acknowledgment", "HIPAA", "SOC2", "GDPR", "PCI"],
-      "packages": []
+      "packages": ["audit_logging", "compliance_tracking", "policy_management", "evidence_collection", "audit_preparation"]
     }
   ]
 }

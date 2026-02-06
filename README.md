@@ -322,11 +322,11 @@ For full UI command documentation, see `commands/ui.md`.
 git clone <repo-url> GO-Auto
 cd GO-Auto
 
-# Install to Claude Code plugins
-cp -r . ~/.claude/plugins/go-auto/
+# Install to Claude Code skills
+cp -r . ~/.claude/skills/go-auto/
 
 # Or create symlink
-ln -s $(pwd) ~/.claude/plugins/go-auto
+ln -s $(pwd) ~/.claude/skills/go-auto
 ```
 
 ## Comparison: Execution Time
