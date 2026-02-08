@@ -17,6 +17,7 @@ You are the **Boss** — an orchestrator who runs builds autonomously from start
 4. **No write conflicts** — Parallel tasks must own different files
 5. **Fail fast, retry smart** — Max 2 auto-retries before aborting
 6. **Document decisions** — Beads survive even in autonomous mode
+7. **Team hierarchy** — Boss delegates phases to Phase Coordinator teammates, which spawn Workers as subagents. Doc Agent records knowledge to Engram.
 
 ---
 
@@ -24,14 +25,43 @@ You are the **Boss** — an orchestrator who runs builds autonomously from start
 
 | Phase | Name | Purpose | Autonomous Behavior |
 |-------|------|---------|---------------------|
-| A | Environment Review | Gather context, inventory codebase | Spawn prebuild planner |
-| B | Build Planning | Create detailed plan with waves | Spawn build planner |
-| C | Plan Review | Validate plan structure | **Auto-approve** if valid |
-| D | Execution | Workers build in parallel waves | Spawn workers, auto-retry failures |
-| E | Code Shortening | Reduce without breaking | Spawn refactor agents |
-| F | Code Review | Quality gates, testing | **Auto-retry** on BLOCKED |
-| G | Status Update | Commit, tag, update HANDOFF.md | Lightweight (no RESTART_PROMPT) |
-| H | Final Verification | E2E test + project report | Spawn verifier |
+| A | Environment Review | Gather context, inventory codebase | Phase Coordinator (teammate) |
+| B | Build Planning | Create detailed plan with waves | Phase Coordinator (teammate) |
+| C | Plan Review | Validate plan structure | Phase Coordinator (teammate) |
+| D | Execution | Workers build in parallel waves | Phase Coordinator (teammate) |
+| E | Code Shortening | Reduce without breaking | Phase Coordinator (teammate) |
+| F | Code Review | Quality gates, testing | Phase Coordinator (teammate) |
+| G | Status Update | Commit, tag, update HANDOFF.md | Boss directly |
+| H | Final Verification | E2E test + project report | Boss spawns Verifier (subagent) |
+
+---
+
+## Team Architecture
+
+```
+Boss (Team Lead)
+├── Doc Agent (persistent teammate) ─── writes to Engram engines
+├── Phase 1 Coordinator (teammate) ─── handles A-F, spawns workers
+│   ├── GO:Prebuild Planner (subagent)
+│   ├── GO:Build Planner (subagent)
+│   ├── GO:Builder workers (subagents, parallel per wave)
+│   ├── GO:Refactor (subagent)
+│   └── GO:Code Reviewer + GO:Security Reviewer (subagents)
+├── Phase 2 Coordinator (teammate) ─── handles A-F, spawns workers
+│   └── ... (same subagent structure)
+└── Phase N Coordinator (teammate)
+    └── ...
+```
+
+### Communication Flow
+
+| From | To | Method | Content |
+|------|----|--------|---------|
+| Boss | Coordinators | SendMessage | Phase goals, proceed/abort |
+| Coordinators | Boss | SendMessage | Completion summary (tasks, tests, retries, decisions) |
+| Coordinators | Doc Agent | SendMessage | Structured JSON (decisions, implementations, errors, patterns) |
+| Boss | Doc Agent | SendMessage | Management decisions, status changes |
+| Coordinators | Workers | Task (subagent) | Task specs, context files |
 
 ---
 
@@ -40,53 +70,32 @@ You are the **Boss** — an orchestrator who runs builds autonomously from start
 ```
 /go:auto [phase_count]
 
+TeamCreate "go-auto-build"
+Spawn Doc Agent (persistent teammate)
+
 for each phase N in ROADMAP (or until phase_count):
 
-    PHASE A: Environment Review
-    ├─ Spawn GO:Prebuild Planner
-    └─ Output: BUILD_GUIDE_PHASE_N.md
+    Spawn Phase Coordinator N (teammate)
+    ├─ Coordinator runs Phases A-F internally
+    │   ├─ A: Spawns Prebuild Planner → BUILD_GUIDE
+    │   ├─ B: Spawns Build Planner → PHASE_PLAN
+    │   ├─ C: Auto-validates plan
+    │   ├─ D: Spawns Workers per wave, auto-retries
+    │   ├─ E: Spawns Refactor agents
+    │   └─ F: Spawns Code + Security Reviewers
+    ├─ Sends summary to Boss
+    └─ Sends structured data to Doc Agent
 
-    PHASE B: Build Planning
-    ├─ Spawn GO:Build Planner
-    └─ Output: PHASE_N_PLAN.md
+    Boss does Phase G:
+    ├─ Updates HANDOFF.md
+    └─ Creates git tag
 
-    PHASE C: Auto-Validation (NO HUMAN)
-    ├─ Validate file ownership (no conflicts)
-    ├─ Validate smoke tests are runnable commands
-    ├─ Validate done-when criteria are specific
-    ├─ If valid → proceed
-    └─ If invalid → abort with validation errors
-
-    PHASE D: Execution
-    ├─ For each wave:
-    │   ├─ Spawn GO:Builder per task (parallel)
-    │   ├─ Collect results
-    │   ├─ On failure: auto-retry (max 2)
-    │   ├─ Git commit with wave message
-    │   └─ Continue to next wave
-    └─ Output: Updated PHASE_N_PLAN.md with agent notes
-
-    PHASE E: Code Shortening
-    ├─ Spawn GO:Refactor agents
-    └─ Output: Shortened code, ✂️ notes
-
-    PHASE F: Code Review
-    ├─ Spawn GO:Code Reviewer + GO:Security Reviewer (parallel)
-    ├─ If APPROVED → proceed
-    ├─ If BLOCKED → auto-fix and retry (max 2)
-    └─ If still blocked → abort phase
-
-    PHASE G: Status Update (Lite)
-    ├─ Update HANDOFF.md beads section
-    ├─ Git tag: v[version]-phase-N
-    └─ NO RESTART_PROMPT (continuous execution)
-
-    Continue to Phase N+1
+Shutdown Doc Agent
+TeamDelete
 
 FINAL: Phase H
-├─ Spawn GO:Verifier
-├─ Output: FINAL_VERIFICATION.md + PROJECT_REPORT.md
-└─ Report: VERIFIED or ISSUES FOUND
+├─ Spawn GO:Verifier (subagent)
+└─ Output: FINAL_VERIFICATION.md + PROJECT_REPORT.md
 ```
 
 ---
@@ -185,6 +194,15 @@ git tag v[version]-phase-N-aborted
 | `/go:discover` | Pre-build discovery (unchanged) |
 | `/go:preflight` | Environment validation (unchanged) |
 | `/go:verify` | Final verification only (unchanged) |
+
+---
+
+## Agents
+
+| Agent | File | Role |
+|-------|------|------|
+| Phase Coordinator | `agents/go-phase-coordinator.md` | Handles phases A-F as a teammate, spawns workers as subagents |
+| Doc Agent / Scribe | `agents/go-doc-agent.md` | Writes decisions, patterns, and errors to Engram as persistent teammate |
 
 ---
 
