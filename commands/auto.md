@@ -8,7 +8,7 @@ arguments:
 
 # /go:auto [phases] — Autonomous Full Build
 
-You are the **Boss** running a fully autonomous build using GO-Auto.
+You are the **Boss** running a fully autonomous build using GO-Auto with a Teams-based architecture.
 
 **Announce**: "I'm running an autonomous build using GO-Auto. All phases will execute continuously without human checkpoints."
 
@@ -64,6 +64,33 @@ If HANDOFF.md doesn't exist, create it:
 |-------|--------|-----|
 ```
 
+## Team Setup
+
+Create the team and spawn the persistent Doc Agent before entering the build loop.
+
+```
+1. TeamCreate "go-auto-build"
+
+2. Spawn Doc Agent as teammate:
+   Task tool:
+     subagent_type: "general-purpose"
+     team_name: "go-auto-build"
+     name: "doc-agent"
+     prompt: [Content of agents/go-doc-agent.md]
+             + "Project root: {project_root}"
+             + "Project ID: {project_id}"
+             + "Team name: go-auto-build"
+
+3. Send initialization message to doc-agent:
+   SendMessage:
+     type: "message"
+     recipient: "doc-agent"
+     content: '{"type": "status_change", "status": "Build started", "reason": "Autonomous build initiated", "phase": 0, "health": "green"}'
+     summary: "Build initialization"
+```
+
+Wait for acknowledgment from doc-agent before proceeding.
+
 ## Main Execution Loop
 
 ```
@@ -71,274 +98,180 @@ for phase_num in 1..run_phases:
 
     announce("Starting Phase {phase_num}")
 
-    ## PHASE A: Environment Review
-    spawn GO:Prebuild Planner with:
-        - phase_num
-        - ROADMAP.md context
-        - HANDOFF.md (if exists)
+    ## Send status update to Doc Agent
+    SendMessage to "doc-agent":
+        content: '{"type": "status_change", "status": "Phase {phase_num} starting", "reason": "Previous phase complete", "phase": {phase_num}, "health": "green"}'
+        summary: "Phase {phase_num} starting"
 
-    wait for BUILD_GUIDE_PHASE_{phase_num}.md
+    ## Spawn Phase Coordinator as teammate
+    Task tool:
+      subagent_type: "general-purpose"
+      team_name: "go-auto-build"
+      name: "phase-{phase_num}-coordinator"
+      prompt: [Content of agents/go-phase-coordinator.md]
+              + "Phase: {phase_num}"
+              + "ROADMAP goals for this phase: {goals}"
+              + "HANDOFF.md context: {handoff_content}"
+              + "Doc Agent teammate name: doc-agent"
+              + "Boss teammate name: [your name in team]"
+              + "Team name: go-auto-build"
 
-    ## PHASE B: Build Planning
-    spawn GO:Build Planner with:
-        - phase_num
-        - BUILD_GUIDE_PHASE_{phase_num}.md
-        - ROADMAP.md phase goals
+    ## Wait for completion message from coordinator
+    The coordinator handles Phases A-F internally by spawning subagents.
+    Wait for a SendMessage from "phase-{phase_num}-coordinator" with the
+    phase completion or abort summary.
 
-    wait for PHASE_{phase_num}_PLAN.md
+    ## If coordinator reports ABORT:
+    if coordinator_message contains abort:
+        execute Abort Protocol (see below)
 
-    ## PHASE C: Auto-Validation
-    validate_result = auto_validate_plan(PHASE_{phase_num}_PLAN.md)
+    ## PHASE G: Status Update (Boss does this directly)
+    1. Parse the coordinator's summary for beads, decisions, metrics
+    2. Extract beads and append to HANDOFF.md Beads Log
+    3. Update HANDOFF.md Git Log with commits from this phase
+    4. Create git tag:
+       git tag v{version}-phase-{phase_num}
+    5. Commit status update:
+       git add HANDOFF.md
+       git commit -m "chore(phase-{phase_num}): complete"
 
-    if validate_result.errors:
-        ABORT("Plan validation failed", validate_result.errors)
+    ## Send management decision to Doc Agent
+    SendMessage to "doc-agent":
+        content: '{"type": "management_decision", "decision": "Phase {phase_num} accepted, proceeding to next phase", "context": "{summary_from_coordinator}", "phase": {phase_num}}'
+        summary: "Phase {phase_num} accepted"
 
-    if validate_result.warnings:
-        log_warnings(validate_result.warnings)
+    ## Record coordinator state
+    SendMessage to "doc-agent":
+        content: '{"type": "agent_state", "agent_name": "phase-{phase_num}-coordinator", "state": "done", "phase": {phase_num}}'
+        summary: "Coordinator {phase_num} done"
 
-    ## PHASE D: Execution
-    execute_plan_with_auto_retry(PHASE_{phase_num}_PLAN.md)
-
-    ## PHASE E: Code Shortening
-    spawn GO:Refactor agents for major files
-    collect shortening notes
-
-    ## PHASE F: Code Review
-    review_result = execute_review_with_auto_retry()
-
-    if review_result == BLOCKED_AFTER_RETRIES:
-        ABORT("Review blocked after max retries", review_context)
-
-    ## PHASE G: Status Update (Lite)
-    update_handoff_beads(phase_num)
-    git_tag("v{version}-phase-{phase_num}")
+    ## Send shutdown to coordinator (it is single-phase, no longer needed)
+    SendMessage:
+        type: "shutdown_request"
+        recipient: "phase-{phase_num}-coordinator"
+        content: "Phase {phase_num} complete, shutting down coordinator"
 
     announce("Phase {phase_num} complete")
 
-## PHASE H: Final Verification
-spawn GO:Verifier
+## PHASE H: Final Verification (Boss does this directly)
+spawn GO:Verifier as a subagent (NOT a teammate):
+    Task tool:
+      subagent_type: "general-purpose"
+      prompt: [Content of agents/go-verifier.md]
+              + "All PHASE_*_PLAN.md files"
+              + "REQUIREMENTS.md (if exists)"
+              + "Full test suite"
+
 wait for FINAL_VERIFICATION.md and PROJECT_REPORT.md
+
+if verification.status == VERIFIED:
+    announce("Autonomous build complete. All verifications passed.")
+else:
+    announce("Build complete with issues. See FINAL_VERIFICATION.md")
+
+## Teardown
+1. Send final status to Doc Agent:
+   SendMessage to "doc-agent":
+       content: '{"type": "status_change", "status": "Build complete", "reason": "All phases and verification finished", "phase": {run_phases}, "health": "green|yellow"}'
+       summary: "Build complete"
+
+2. Wait for Doc Agent acknowledgment
+
+3. Shut down Doc Agent:
+   SendMessage:
+       type: "shutdown_request"
+       recipient: "doc-agent"
+       content: "Build complete, shutting down doc agent"
+
+4. Wait for shutdown_response from doc-agent
+
+5. TeamDelete "go-auto-build"
 
 announce("Autonomous build complete")
 ```
 
-## Phase A: Environment Review
+## Phase G: Status Update (Boss-Owned)
 
-Spawn a Task agent:
-```
-subagent_type: "general-purpose"
-prompt: [Content of agents/go-prebuild-planner.md]
-         + "Phase: {phase_num}"
-         + "ROADMAP goals for this phase: {goals}"
-         + "HANDOFF.md context: {handoff_beads}"
-```
-
-Wait for `BUILD_GUIDE_PHASE_{phase_num}.md` to be created.
-
-## Phase B: Build Planning
-
-Spawn a Task agent:
-```
-subagent_type: "general-purpose"
-prompt: [Content of agents/go-build-planner.md]
-         + "Phase: {phase_num}"
-         + "BUILD_GUIDE: {build_guide_content}"
-```
-
-Wait for `PHASE_{phase_num}_PLAN.md` to be created.
-
-## Phase C: Auto-Validation
-
-**NO HUMAN CHECKPOINT.** Instead, validate programmatically:
-
-```python
-def auto_validate_plan(plan_path):
-    errors = []
-    warnings = []
-
-    plan = read_plan(plan_path)
-
-    # MUST PASS: Structure checks
-    for task in plan.tasks:
-        if not task.done_when or not is_numbered_list(task.done_when):
-            errors.append(f"Task {task.id}: Missing numbered Done When criteria")
-
-        if not task.smoke_tests or not all(is_runnable_command(t) for t in task.smoke_tests):
-            errors.append(f"Task {task.id}: Smoke tests must be runnable commands")
-
-    if not plan.file_ownership_table:
-        errors.append("Missing File Ownership Guarantee table")
-    else:
-        conflicts = find_parallel_write_conflicts(plan.file_ownership_table)
-        if conflicts:
-            errors.append(f"Parallel write conflicts: {conflicts}")
-
-    # WARNINGS: Quality checks
-    if not plan.risk_assessment:
-        warnings.append("No risk assessment provided")
-
-    if not plan.skills_per_task:
-        warnings.append("Skills not assigned to tasks")
-
-    return ValidationResult(errors=errors, warnings=warnings)
-```
-
-If errors exist → ABORT with specific error messages.
-If only warnings → Log warnings and PROCEED.
-
-Add validation note to plan:
-```markdown
-> ✅ **Auto-validated [timestamp]**
-> Errors: 0 | Warnings: [N]
-> Proceeding to execution
-```
-
-## Phase D: Execution with Auto-Retry
-
-For each wave in the plan:
+The Boss performs Phase G directly after each Phase Coordinator reports completion. No subagent is spawned.
 
 ```
-for wave in plan.waves:
-    # Spawn all tasks in parallel
-    workers = []
-    for task in wave.tasks:
-        worker = spawn GO:Builder with:
-            - task spec from plan
-            - context files
-            - skill requirements
-        workers.append(worker)
+1. Parse coordinator's completion message for:
+   - Tasks completed / failed counts
+   - Test counts
+   - Auto-retry counts
+   - Key decisions made
+   - Issues found / fixed / escalated
 
-    # Collect results
-    results = wait_all(workers)
+2. Extract beads from PHASE_{phase_num}_PLAN.md:
+   - Each completed task becomes a bead entry in HANDOFF.md
 
-    # Handle failures
-    for result in results:
-        if result.status == FAILED:
-            retry_result = auto_retry_task(result, max_attempts=2)
-            if retry_result.status == FAILED:
-                ABORT("Task failed after max retries", retry_result)
+3. Append beads to HANDOFF.md Beads Log table
 
-    # Git checkpoint
-    git_add(wave.files)
-    git_commit(wave.commit_message)
+4. Update HANDOFF.md Git Log table with:
+   - Phase number
+   - Latest commit hash
+   - Tag name
 
-    # Update plan with notes
-    append_agent_notes(plan, results)
-```
+5. Create git tag: v{version}-phase-{phase_num}
 
-### Auto-Retry Logic
-
-```python
-def auto_retry_task(failure, max_attempts):
-    for attempt in range(1, max_attempts + 1):
-        if failure.confidence < 80:
-            return ABORT("Low confidence fix, needs human review")
-
-        # Spawn retry worker with fix context
-        retry_worker = spawn GO:Builder with:
-            - original task spec
-            - failure.suggested_fix
-            - failure.root_cause
-            - "This is retry attempt {attempt}"
-
-        result = wait(retry_worker)
-
-        if result.status == SUCCESS:
-            log(f"🟢 Auto-recovered on attempt {attempt}")
-            return result
-
-        failure = result  # Update for next iteration
-
-    return FAILED_AFTER_RETRIES
-```
-
-## Phase E: Code Shortening
-
-```
-major_files = identify_major_files(phase_num)
-
-for file in major_files:
-    spawn GO:Refactor with:
-        - file path
-        - current tests
-        - "Reduce code without changing behavior"
-
-collect shortening notes
-append to PHASE_{phase_num}_PLAN.md
-```
-
-## Phase F: Code Review with Auto-Retry
-
-```
-# Spawn reviewers in parallel
-code_reviewer = spawn GO:Code Reviewer
-security_reviewer = spawn GO:Security Reviewer
-
-code_result = wait(code_reviewer)
-security_result = wait(security_reviewer)
-
-if both APPROVED:
-    proceed to Phase G
-
-if any BLOCKED:
-    for issue in blocked_issues:
-        fix_result = auto_fix_issue(issue, max_attempts=2)
-        if fix_result == STILL_BLOCKED:
-            ABORT("Review issue unfixable", issue)
-
-    # Re-run review
-    repeat Phase F (max 2 full cycles)
-```
-
-## Phase G: Status Update (Lite)
-
-**Simplified for autonomous mode** — no RESTART_PROMPT needed.
-
-```
-1. Extract beads from PHASE_{phase_num}_PLAN.md
-2. Append to HANDOFF.md Beads Log
-3. Update HANDOFF.md Git Log
-4. Create git tag: v{version}-phase-{phase_num}
-5. Commit: "chore(phase-{phase_num}): complete"
+6. Commit: "chore(phase-{phase_num}): complete"
 ```
 
 **NOT created** (unlike GO-Build):
 - ~~RESTART_PROMPT_PHASE_{N+1}.md~~
 - ~~HANDOFF_PHASE_{N}.md~~
 
-## Phase H: Final Verification
+## Phase H: Final Verification (Boss-Owned)
 
-After all phases complete:
+After all phases complete, the Boss spawns GO:Verifier as a **subagent** (not a teammate) to run end-to-end validation.
 
 ```
-spawn GO:Verifier with:
-    - All PHASE_*_PLAN.md files
-    - REQUIREMENTS.md (if exists)
-    - Full test suite
+spawn GO:Verifier as subagent:
+    Task tool:
+      subagent_type: "general-purpose"
+      prompt: [Content of agents/go-verifier.md]
+              + "All PHASE_*_PLAN.md files"
+              + "REQUIREMENTS.md (if exists)"
+              + "Full test suite"
 
 wait for:
     - FINAL_VERIFICATION.md
     - PROJECT_REPORT.md
 
 if verification.status == VERIFIED:
-    announce("✅ Autonomous build complete. All verifications passed.")
+    announce("Autonomous build complete. All verifications passed.")
 else:
-    announce("⚠️ Build complete with issues. See FINAL_VERIFICATION.md")
+    announce("Build complete with issues. See FINAL_VERIFICATION.md")
 ```
+
+The Verifier does not join the team. It runs, produces its reports, and exits.
+
+## Auto-Validation
+
+Plan validation (Phase C) is handled internally by the Phase Coordinator. The coordinator checks:
+
+- Every task has numbered Done When criteria
+- Smoke tests are runnable bash commands
+- No parallel write conflicts in the File Ownership Guarantee table
+- Wave dependencies are acyclic (Wave N+1 depends only on Wave N or earlier)
+- Every task has all required sections (Description, Files, Dependencies, Context, Smoke Tests, Done When)
+
+If validation fails, the coordinator attempts replanning (max 2 attempts). If replanning fails, the coordinator aborts and reports to the Boss with the specific validation failures. The Boss then executes the Abort Protocol.
 
 ## Abort Protocol
 
-On any ABORT:
+On any ABORT (whether from a Phase Coordinator report or a Boss-level failure):
 
 ```markdown
-## 🔴 Autonomous Build Aborted
+## Autonomous Build Aborted
 
 **Phase**: {phase_num}
 **Stage**: {A|B|C|D|E|F|G}
 **Reason**: {reason}
+**Source**: {coordinator report | boss detection}
 
 ### Context
-{full error context}
+{full error context from coordinator's abort message}
 
 ### Files Created
 {list of files created before abort}
@@ -353,25 +286,50 @@ Last commit: {commit_hash}
 Tag: v{version}-phase-{phase_num}-aborted
 ```
 
-Create abort tag: `git tag v{version}-phase-{phase_num}-aborted`
+On abort:
+1. Create abort tag: `git tag v{version}-phase-{phase_num}-aborted`
+2. Send abort status to Doc Agent
+3. Shut down Doc Agent (shutdown_request)
+4. Shut down any active Phase Coordinator (shutdown_request)
+5. TeamDelete "go-auto-build"
+6. Report to user
+
+## Git Strategy
+
+- **Wave commits**: Created by Phase Coordinators during Phase D (one commit per wave)
+- **Shortening commits**: Created by Phase Coordinators during Phase E
+- **Review fix commits**: Created by Phase Coordinators during Phase F
+- **Phase tags**: Created by Boss during Phase G (`v{version}-phase-{phase_num}`)
+- **Status commits**: Created by Boss during Phase G (`chore(phase-N): complete`)
+- **Abort tags**: Created by Boss on abort (`v{version}-phase-{phase_num}-aborted`)
+- **Final tag**: Created by Boss after Phase H (`v{version}-final`)
+
+The Boss never commits code. Coordinators never create tags.
 
 ## Output Summary
 
 On successful completion:
 
 ```markdown
-## ✅ Autonomous Build Complete
+## Autonomous Build Complete
 
 **Phases**: {N} completed
 **Duration**: {time}
-**Mode**: Fully autonomous
+**Mode**: Fully autonomous (Teams-based)
+**Team**: go-auto-build
+
+### Architecture
+- Boss: orchestrated {N} phases
+- Doc Agent: recorded build knowledge to Engram
+- Phase Coordinators: {N} spawned (one per phase)
+- Workers: spawned as subagents by coordinators
 
 ### Per-Phase Summary
 | Phase | Tasks | Tests | Auto-Retries | Status |
 |-------|-------|-------|--------------|--------|
-| 1 | 5 | 23 | 0 | ✅ |
-| 2 | 8 | 41 | 1 | ✅ |
-| 3 | 4 | 18 | 0 | ✅ |
+| 1 | 5 | 23 | 0 | PASS |
+| 2 | 8 | 41 | 1 | PASS |
+| 3 | 4 | 18 | 0 | PASS |
 
 ### Artifacts Created
 - PHASE_1_PLAN.md ... PHASE_{N}_PLAN.md

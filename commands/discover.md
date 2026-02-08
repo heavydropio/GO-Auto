@@ -31,7 +31,7 @@ Scope Assessment → LITE or FULL path
      ↓
 Auto-run /go-auto:preflight
      ↓
-Auto-run /go-auto:auto (all build phases)
+Auto-run /go-auto:auto (Teams-based: Boss + Phase Coordinators + Doc Agent)
      ↓
 Auto-run /go-auto:ui generate (if screens defined)
      ↓
@@ -86,7 +86,7 @@ R1 complete → LITE path selected
 1. Generate ROADMAP.md (1 phase per module + integration)
 2. Update discovery-state.json with path: "light"
 3. Auto-run /go-auto:preflight
-4. Auto-run /go-auto:auto (all phases)
+4. Auto-run /go-auto:auto (all phases, Teams-based orchestration)
 5. Report completion
 ```
 
@@ -105,7 +105,7 @@ R1 complete → FULL path selected
 6. Spawn R7 (Build Plan) → Creates ROADMAP.md
 7. Update discovery-state.json with path: "full"
 8. Auto-run /go-auto:preflight
-9. Auto-run /go-auto:auto (all phases)
+9. Auto-run /go-auto:auto (all phases, Teams-based orchestration)
 10. Auto-run /go-auto:ui generate (if R4 defined screens)
 11. Report completion
 ```
@@ -386,7 +386,8 @@ If autonomous execution aborts at any stage:
 | R1 | Interactive | Interactive |
 | R2-R7 | User checkpoints between rounds | Autonomous, no checkpoints |
 | After discovery | User runs /go:preflight manually | Auto-chains to preflight |
-| After preflight | User runs /go:kickoff manually | Auto-chains to build |
+| After preflight | User runs /go:kickoff manually | Auto-chains to Teams-based build (Boss → Coordinators → Workers) |
 | After build | User runs /go:ui manually | Auto-chains to UI generation |
+| Build orchestration | Single-agent sequential | Teams: Boss + Phase Coordinators + Doc Agent + Workers |
 
 **GO-Auto is one conversation, then hands-off until completion.**

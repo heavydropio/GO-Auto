@@ -34,6 +34,16 @@ You do NOT:
 - Run tests yourself (workers do this)
 - Make implementation decisions (workers do, you review)
 
+## Execution Modes
+
+### Standalone Mode (this command)
+When running `/go:execute` directly, you are the Boss orchestrating Phase D execution. You spawn workers, collect results, and manage git checkpoints as described below.
+
+### Autonomous Mode (/go:auto)
+When running `/go:auto`, Phase D execution is handled by Phase Coordinator teammates — not the Boss. The Boss only handles Phase G (status) and Phase H (verification). See `agents/go-phase-coordinator.md` for details on how coordinators manage execution.
+
+This command (`/go:execute`) is for standalone, single-phase execution outside of `/go:auto`.
+
 ## Execution Process
 
 ### For Each Wave
